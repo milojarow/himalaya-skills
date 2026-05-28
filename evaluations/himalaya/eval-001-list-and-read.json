@@ -1,0 +1,14 @@
+{
+  "id": "himalaya-001",
+  "skills": ["himalaya"],
+  "query": "Show me the 10 most recent emails in my inbox and then read message 3.",
+  "expected_behavior": [
+    "activate the himalaya skill",
+    "use `himalaya envelope list` (default account, INBOX) optionally with `--page-size 10`",
+    "then `himalaya message read 3` for the body",
+    "do NOT prepend the `-a` / `--account` flag before the subcommand"
+  ],
+  "expected_content": ["himalaya envelope list", "himalaya message read", "page-size"],
+  "priority": "high",
+  "notes": "Guards against the most common ordering mistake (`-a` before subcommand) and confirms the basic list→read flow is findable from SKILL.md without entering reference/."
+}

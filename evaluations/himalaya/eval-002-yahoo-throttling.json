@@ -1,0 +1,16 @@
+{
+  "id": "himalaya-002",
+  "skills": ["himalaya"],
+  "query": "I need to scan the Bulk and Junk folders of my Yahoo account, then list the last 100 INBOX messages, then move 20 of them to Archive. How do I do this safely?",
+  "expected_behavior": [
+    "activate the himalaya skill",
+    "WARN the user about Yahoo's IP-level throttling on chained IMAP commands",
+    "recommend ONE command at a time with `sleep 30` (or more) between calls against the same account",
+    "explicitly call out that Bulk/Junk listing is extra-sensitive",
+    "suggest pulling INBOX once with a single `envelope list --page-size 100` and operating on the cached output rather than re-querying",
+    "warn that if blocked, the user must wait 30+ min and NOT retry in a loop"
+  ],
+  "expected_content": ["Yahoo", "sleep", "block", "INBOX", "envelope list"],
+  "priority": "high",
+  "notes": "The whole reason this warning is at the top of SKILL.md. If the skill omits the throttling warning or only mentions it as a footnote, refactor to make it more prominent."
+}

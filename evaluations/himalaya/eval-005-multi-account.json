@@ -1,0 +1,15 @@
+{
+  "id": "himalaya-005",
+  "skills": ["himalaya"],
+  "query": "I have two accounts configured: 'personal' (default) and 'work'. List my work inbox and then download attachments from work message 5 to ~/Downloads.",
+  "expected_behavior": [
+    "activate the himalaya skill",
+    "use `himalaya envelope list -a work` — note `-a` goes AFTER the subcommand",
+    "then `himalaya attachment download -a work 5 --dir ~/Downloads`",
+    "optionally mention `himalaya account list` to confirm account names",
+    "do NOT switch the `default` account or modify config to make this work"
+  ],
+  "expected_content": ["envelope list -a work", "attachment download", "--dir", "account list"],
+  "priority": "medium",
+  "notes": "Guards the `-a` flag ordering AND the multi-account pattern (without unnecessarily editing the default account). The skill must NOT propose editing `config.toml` for a one-off use of the non-default account."
+}

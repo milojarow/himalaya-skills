@@ -1,0 +1,16 @@
+{
+  "id": "himalaya-004",
+  "skills": ["himalaya"],
+  "query": "I'm on a fresh Ubuntu VM and I want to start using himalaya to read my Gmail. I don't have it installed yet. What do I do?",
+  "expected_behavior": [
+    "activate the himalaya skill",
+    "point to `reference/installation.md` for the install step",
+    "give a concrete Ubuntu/Debian path — prebuilt binary from GitHub releases OR `cargo install himalaya`",
+    "after install, mention `himalaya account configure` (interactive wizard) OR hand-edit config",
+    "for Gmail specifically, note that an App Password is required (2-Step Verification → App Passwords) and point to `reference/configuration.md`",
+    "verify install with `himalaya --version`"
+  ],
+  "expected_content": ["himalaya --version", "reference/installation.md", "App Password", "reference/configuration.md", "Ubuntu"],
+  "priority": "high",
+  "notes": "Critical: the skill MUST handle the 'CLI not installed' case in a transferable way. Tests that install + config docs are reachable in ≤1 cross-link from SKILL.md."
+}

@@ -1,0 +1,25 @@
+{
+  "name": "himalaya-skills",
+  "description": "Read, search, organize and compose email from the terminal via the himalaya CLI (IMAP/SMTP).",
+  "owner": {
+    "name": "milojarow",
+    "url": "https://github.com/milojarow"
+  },
+  "plugins": [
+    {
+      "name": "himalaya-skills",
+      "source": "./",
+      "description": "Drive himalaya (CLI email client over IMAP/SMTP): list/search/read/move/flag, attachments, compose with MML (HTML, inline images, attachments). Includes account setup for Gmail, iCloud, Outlook, Yahoo and OAuth2 — with a Yahoo throttling warning.",
+      "version": "0.1.0",
+      "author": {
+        "name": "milojarow",
+        "url": "https://github.com/milojarow"
+      },
+      "category": "communication",
+      "keywords": ["himalaya", "email", "imap", "smtp", "cli", "mml"],
+      "homepage": "https://github.com/milojarow/himalaya-skills",
+      "repository": "https://github.com/milojarow/himalaya-skills",
+      "license": "MIT"
+    }
+  ]
+}

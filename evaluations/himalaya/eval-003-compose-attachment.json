@@ -1,0 +1,15 @@
+{
+  "id": "himalaya-003",
+  "skills": ["himalaya"],
+  "query": "Compose an email to client@example.com with subject \"Q4 report\", a short body, and attach /home/me/reports/q4.pdf. I want to send it from a script (non-interactive).",
+  "expected_behavior": [
+    "activate the himalaya skill",
+    "use `himalaya template send` with stdin (heredoc), NOT the interactive `message write`",
+    "include MML `<#part filename=/home/me/reports/q4.pdf><#/part>` to attach the file",
+    "cross-link or reference `reference/composing-messages.md` for the MML detail",
+    "include the `From:` header in the heredoc"
+  ],
+  "expected_content": ["template send", "<#part", "filename", "Subject: Q4 report", "EOF"],
+  "priority": "high",
+  "notes": "Guards two things: (1) the non-interactive path is `template send` (not `message write`), and (2) MML attachment syntax is findable from SKILL.md via the composing-messages cross-link."
+}
