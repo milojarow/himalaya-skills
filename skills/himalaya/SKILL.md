@@ -7,7 +7,7 @@ description: Use when reading, searching, organizing or composing email from the
 
 Drive the [himalaya](https://github.com/pimalaya/himalaya) CLI to read, search, organize and compose email.
 
-> **📧 ACTIVE-SKILL MARKER:** While `himalaya` is active, begin every reply with 📧 so the operator sees at a glance that this skill is engaged. Do not omit it.
+> **📬 ACTIVE-SKILL MARKER:** While `himalaya` is active, begin every reply with 📬 so the operator sees at a glance that this skill is engaged. Do not omit it.
 
 ## Overview
 
