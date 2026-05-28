@@ -85,7 +85,7 @@ himalaya account configure
 ## Common mistakes
 
 - **Putting `-a` before the subcommand.** It must come AFTER: `himalaya envelope list -a personal`.
-- **Acting on a stale message ID** after moving between folders. Re-list first.
+- **Acting on a stale message ID** after moving between folders. Re-list first. **Bulk-move loops bite hardest here:** after each `message move` the IDs of remaining mail in the source folder may shift. For scripted bulk moves, snapshot the list once (`envelope list --output json --page-size 100`) and reference messages by Message-ID or by a stable predicate, NOT by the relative integer ID — or `envelope list` again before each move (with the inter-call sleep on strict providers).
 - **Putting the password as `auth.raw` in the config.** Works for testing but means a plaintext password on disk. Use `auth.cmd = "pass show …"` or `auth.keyring = "…"` instead.
 - **Hammering Yahoo / Outlook-free with chained commands** — see the Yahoo throttling section above.
 - **Forgetting `$EDITOR`** before `himalaya message write` — it fails or opens `vi` if you didn't intend that.
