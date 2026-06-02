@@ -7,7 +7,7 @@ description: Use when reading, searching, organizing or composing email from the
 
 Drive the [himalaya](https://github.com/pimalaya/himalaya) CLI to read, search, organize and compose email.
 
-> **📬 ACTIVE-SKILL MARKER:** While `himalaya` is active, begin every reply with 📬 so the operator sees at a glance that this skill is engaged. Do not omit it.
+> **📬 ACTIVE-SKILL MARKER:** Prefix your reply with 📬 **only on turns where the work touches the `himalaya` / email-CLI domain** — listing, reading, searching, moving or flagging mail; composing/replying/forwarding or writing MML; account setup against an IMAP/SMTP/OAuth2 box. On turns that do NOT touch it (typecheck, build, git ops, unrelated edits or shell work in other domains), **omit 📬** even if the skill loaded earlier in the session. If other active skills also apply to the same turn, **stack their emojis** in the prefix.
 
 ## Overview
 

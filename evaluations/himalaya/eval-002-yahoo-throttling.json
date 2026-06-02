@@ -10,7 +10,7 @@
     "suggest pulling INBOX once with a single `envelope list --page-size 100` and operating on the cached output rather than re-querying",
     "warn that if blocked, the user must wait 30+ min and NOT retry in a loop"
   ],
-  "expected_content": ["Yahoo", "sleep", "block", "INBOX", "envelope list"],
+  "expected_content": ["Yahoo", "sleep", "block", "INBOX", "envelope list", "sleep 30", "30 min"],
   "priority": "high",
   "notes": "The whole reason this warning is at the top of SKILL.md. If the skill omits the throttling warning or only mentions it as a footnote, refactor to make it more prominent."
 }
