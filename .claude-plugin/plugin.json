@@ -1,6 +1,6 @@
 {
   "name": "himalaya-skills",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Drive himalaya (CLI email client over IMAP/SMTP): list/search/read/move/flag, attachments, compose with MML (HTML, inline images, attachments). Includes account setup for Gmail, iCloud, Outlook, Yahoo and OAuth2 — with a Yahoo throttling warning.",
   "author": {
     "name": "milojarow",

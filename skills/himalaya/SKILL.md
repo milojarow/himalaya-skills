@@ -31,19 +31,13 @@ Drive the [himalaya](https://github.com/pimalaya/himalaya) CLI to read, search, 
 
 If himalaya isn't installed, see [reference/installation.md](reference/installation.md) for one-liners per OS.
 
-## ⚠️ Yahoo (and other strict-IMAP) throttling — read this first
+## ⚠️ Yahoo IMAP throttling — read this first
 
-**Chained IMAP commands against Yahoo (and Outlook free, and some hosted Exchange) trigger an IP-level block** that lasts 25+ minutes and rejects subsequent `LOGIN` attempts. The block is silent and stings — you'll see the next command fail to authenticate even though the credentials are correct.
+**Chained IMAP commands against Yahoo trigger a silent, IP-level block** that lasts 25+ minutes and starts rejecting even `LOGIN` (`IMAP4rev1 Server logging out`) despite correct credentials. The fastest trigger is **chained `SEARCH`/fetch across non-INBOX folders** (`Archive`, `Sent`, `Junk`, `Bulk`). Aggressive retries reset/extend the block.
 
-**Rules when targeting Yahoo / Outlook-free / restrictive IMAP:**
+**Minimum rules for Yahoo:** one command at a time (no loops/parallel), `sleep 30`+ between commands, avoid chained searches on non-INBOX folders, and if blocked **stop and wait out the full window** — don't retry. For bulk work, snapshot once (`himalaya envelope list --output json --page-size 50`) and operate on the cached output.
 
-1. **One IMAP command at a time.** Never chain several `himalaya envelope list` / `message read` calls in a tight loop.
-2. **`sleep 30` (minimum) between commands** against the same account.
-3. **Folders other than INBOX are extra-sensitive.** Listing `Bulk` or `Junk` repeatedly is the fastest way to get blocked.
-4. **If you get blocked:** wait at least 30 minutes before retrying. Do NOT keep retrying — that resets the timer.
-5. **For bulk operations on Yahoo,** prefer downloading a slice once (`himalaya envelope list --page-size 50`) and operating on the cached output, rather than re-querying.
-
-Gmail and iCloud are more permissive but still apply rate limits — keep it civilized.
+This severity is Yahoo-specific; Gmail, iCloud, Outlook and own-domain IMAP apply softer limits — keep them civilized but reserve the heavy pacing for Yahoo. Full detail and per-provider notes: [reference/provider-quirks.md](reference/provider-quirks.md).
 
 ## Quick reference
 
@@ -87,7 +81,7 @@ himalaya account configure
 - **Putting `-a` before the subcommand.** It must come AFTER: `himalaya envelope list -a personal`.
 - **Acting on a stale message ID** after moving between folders. Re-list first. **Bulk-move loops bite hardest here:** after each `message move` the IDs of remaining mail in the source folder may shift. For scripted bulk moves, snapshot the list once (`envelope list --output json --page-size 100`) and reference messages by Message-ID or by a stable predicate, NOT by the relative integer ID — or `envelope list` again before each move (with the inter-call sleep on strict providers).
 - **Putting the password as `auth.raw` in the config.** Works for testing but means a plaintext password on disk. Use `auth.cmd = "pass show …"` or `auth.keyring = "…"` instead.
-- **Hammering Yahoo / Outlook-free with chained commands** — see the Yahoo throttling section above.
+- **Hammering Yahoo with chained commands** (especially searches across non-INBOX folders) — see the Yahoo throttling section above.
 - **Forgetting `$EDITOR`** before `himalaya message write` — it fails or opens `vi` if you didn't intend that.
 - **Confusing `message read` with `message export`** — `read` is plain text rendering, `export --full` is raw MIME (useful for debugging signatures, headers, attachments).
 - **Trying to compose HTML inline** — use MML's `<#multipart type=alternative>` (see [reference/composing-messages.md](reference/composing-messages.md)).
