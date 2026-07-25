@@ -39,6 +39,8 @@ If himalaya isn't installed, see [reference/installation.md](reference/installat
 
 This severity is Yahoo-specific; Gmail, iCloud, Outlook and own-domain IMAP apply softer limits — keep them civilized but reserve the heavy pacing for Yahoo. Full detail and per-provider notes: [reference/provider-quirks.md](reference/provider-quirks.md).
 
+**himalaya opens one IMAP login per command** — fine interactively, dangerous in bulk. For anything massive against a rate-limited provider (several folders, many bodies, N moves), step out of himalaya and use **one raw IMAP session with `FETCH` by sequence range and no `SEARCH`**. Validated pattern: [reference/provider-quirks.md](reference/provider-quirks.md) §Bulk sweeps.
+
 ## Quick reference
 
 The `-a <account>` / `--account <account>` flag goes **AFTER** the subcommand (`himalaya envelope list -a personal`, not `himalaya -a personal envelope list`).
