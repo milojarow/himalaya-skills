@@ -122,10 +122,12 @@ sudo install target/release/himalaya /usr/local/bin/himalaya
 
 ## After installing
 
-Run the interactive wizard once to create an account:
+Run the wizard once to create an account. In v2 it runs on bare `himalaya` and prints TOML to stdout instead of writing the file, so redirect it yourself:
 
 ```bash
-himalaya account configure
+himalaya > ~/.config/himalaya/config.toml
 ```
+
+(`himalaya account configure` was removed in v2. Note `>` truncates — append with `>>` when adding a second account.)
 
 …or hand-write a `~/.config/himalaya/config.toml` — see [configuration.md](configuration.md) for layouts per provider.

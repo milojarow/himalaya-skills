@@ -33,7 +33,7 @@ Yahoo's IMAP has a strict anti-abuse rate limiter that escalates to a hard,
 4. **If you get blocked, STOP and wait out the full window.** Do not retry
    aggressively.
 5. **For bulk work, snapshot once and operate on the cache.** Pull a slice with
-   `himalaya envelope list --output json --page-size 50` and work from that
+   `himalaya envelope list --json --page-size 50` and work from that
    output instead of re-querying the server.
 
 ### Severity is Yahoo-specific

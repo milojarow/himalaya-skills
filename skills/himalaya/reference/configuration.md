@@ -1,274 +1,289 @@
-# Configuring himalaya
+# Configuring himalaya v2
 
-Config file: `~/.config/himalaya/config.toml`.
+Config file, first valid path wins:
 
-## Quickstart — interactive wizard
+- `$XDG_CONFIG_HOME/himalaya/config.toml`
+- `$HOME/.config/himalaya/config.toml`
+- `$HOME/.himalayarc`
+
+Override with `-c <PATH>`. Multiple `:`-separated paths deep-merge onto the first. **`HIMALAYA_CONFIG` was removed in v2.**
+
+The upstream schema reference is [`config.sample.toml`](https://github.com/pimalaya/himalaya/blob/master/config.sample.toml); the notes below are the practical subset.
+
+> **v1 users:** this file documents the v2 schema, which is a full rewrite of the v1 `backend.*` / `message.send.backend.*` layout. See the migration table in `SKILL.md`, or pin this plugin to `0.1.4` for the v1 docs.
+
+## Quickstart — the wizard
 
 ```bash
-himalaya account configure
+himalaya > ~/.config/himalaya/config.toml
 ```
 
-The wizard walks you through one account and writes the file. For everything beyond the most basic case (multi-account, OAuth2, folder aliases, custom auth), hand-edit the file with the patterns below.
+Bare `himalaya` (no subcommand) runs the wizard. It discovers IMAP/SMTP/JMAP settings via PACC, Thunderbird Autoconfiguration and RFC 6186 SRV, **tests the connection**, then prints a ready-to-save account to stdout (prompts go to stderr, so redirecting stdout is safe).
+
+Re-run it to generate another account and append:
+
+```bash
+himalaya >> ~/.config/himalaya/config.toml
+```
+
+**`>` truncates.** Never point it at a config that already holds accounts you want to keep — generate to a temp file and merge instead.
+
+The account name is derived from the domain; rename it by editing the printed `[accounts.<name>]` key. `himalaya account configure` no longer exists.
 
 ## Minimal IMAP + SMTP
 
 ```toml
 [accounts.personal]
-email = "you@example.com"
-display-name = "Your Name"
 default = true
 
-# IMAP — receive
-backend.type = "imap"
-backend.host = "imap.example.com"
-backend.port = 993
-backend.encryption.type = "tls"
-backend.login = "you@example.com"
-backend.auth.type = "password"
-backend.auth.cmd = "pass show email/personal-imap"
+imap.server = "imaps://imap.example.com:993"
+imap.sasl.plain.username = "you@example.com"
+imap.sasl.plain.password.command = "pass show email/personal-imap"
 
-# SMTP — send
-message.send.backend.type = "smtp"
-message.send.backend.host = "smtp.example.com"
-message.send.backend.port = 587
-message.send.backend.encryption.type = "start-tls"
-message.send.backend.login = "you@example.com"
-message.send.backend.auth.type = "password"
-message.send.backend.auth.cmd = "pass show email/personal-smtp"
+smtp.server = "smtps://smtp.example.com:465"
+smtp.sasl.plain.username = "you@example.com"
+smtp.sasl.plain.password.command = "pass show email/personal-smtp"
+
+mailbox.alias.inbox = "INBOX"
+mailbox.alias.sent = "Sent"
+mailbox.alias.drafts = "Drafts"
+mailbox.alias.trash = "Trash"
 ```
 
-## Password options
+### No `email` / `display-name` keys in v2
 
-| Option | Use when |
+Both were removed — composition left the CLI, so himalaya no longer knows your address. **Consequence: `message compose` emits no `From` header unless you pass `--from`.** Either pass it per-call, or let your SMTP server stamp the sender:
+
+```bash
+himalaya message compose --from "You <you@example.com>" -t someone@example.com -s "Hi" --body "…"
+```
+
+A leftover `email = …` / `display-name = …` from a v1 config is silently ignored rather than rejected — easy to miss.
+
+### Server URL forms
+
+`imap.server` / `smtp.server` accept a bare authority or a full URL:
+
+| Value | Meaning |
 |---|---|
-| `auth.cmd = "pass show <entry>"` | **Recommended** — `pass` is the standard UNIX password store. |
-| `auth.cmd = "security find-generic-password -a <user> -s <service> -w"` | macOS Keychain on the CLI. |
-| `auth.keyring = "<entry-name>"` | System keyring (Secret Service / KWallet / etc.). After this, run `himalaya account configure <account>` to store the password into the keyring. |
-| `auth.raw = "<password>"` | **Testing only.** Plaintext on disk; never commit. |
+| `"example.com"` | Bare authority — treated as `imaps://` (implicit TLS) |
+| `"imap.example.com:143"` | Bare authority with port, still implicit TLS |
+| `"imap://example.com:143"` | Cleartext, optionally upgraded with `imap.starttls = true` |
+| `"imaps://example.com:993"` | Explicit implicit-TLS |
+| `"unix:///path/to/sock"` | Pre-authenticated session proxy (e.g. [sirup](https://github.com/pimalaya/sirup)); no SASL negotiated |
 
-The `cmd` form runs any shell command that prints the password to stdout — so you can also use 1Password CLI (`op read "op://Vault/Item/password"`), Bitwarden CLI, `gopass`, etc.
+TLS knobs: `imap.tls.provider` (`rustls` / `native-tls`), `imap.tls.rustls.crypto` (`ring` / `aws`), `imap.tls.cert` (extra PEM root), `imap.alpn` (defaults `["imap"]`, `[]` to skip). Same keys under `smtp.*`.
+
+## Authentication
+
+Pick exactly one SASL mechanism: `anonymous`, `login`, `plain`, `oauthbearer`, `xoauth2`, `scram-sha-256`. Omit the whole `imap.sasl` table to skip authentication entirely.
+
+```toml
+imap.sasl.plain.username = "you@example.com"
+imap.sasl.plain.password.command = "pass show email/personal"
+```
+
+### Secrets
+
+Every password/token field takes either a literal or a shell command:
+
+| Form | Use when |
+|---|---|
+| `password.command = "pass show <entry>"` | **Recommended.** Any command printing the secret to stdout. |
+| `password.command = ["pass", "show", "foo"]` | Array form — avoids shell quoting problems. |
+| `password.raw = "<password>"` | **Testing only.** Plaintext on disk; never commit. |
+
+**Native keyring support was removed in v2.** Use a password-manager CLI instead:
+
+```toml
+# macOS Keychain
+imap.sasl.plain.password.command = "security find-generic-password -a you@example.com -s himalaya-imap -w"
+
+# Secret Service (GNOME/KDE)
+imap.sasl.plain.password.command = "secret-tool lookup service himalaya user you@example.com"
+
+# 1Password / Bitwarden / gopass
+imap.sasl.plain.password.command = "op read 'op://Vault/Item/password'"
+```
+
+### OAuth 2.0
+
+OAuth moved out of himalaya into an external broker — [pimalaya/ortie](https://github.com/pimalaya/ortie), `pizauth` or `oama`. himalaya just consumes the token the same way it consumes a password:
+
+```toml
+imap.sasl.oauthbearer.username = "you@example.com"
+imap.sasl.oauthbearer.token.command = "ortie token get gmail"
+```
+
+`xoauth2` works the same for providers that require it. Host/port for the OAUTHBEARER GS2 header are derived from the server URL at connect time.
 
 ## Provider examples
 
-### Gmail (with App Password)
-
-Gmail blocks ordinary password auth — you need an **App Password** (Account → Security → 2-Step Verification → App Passwords).
+### Gmail — IMAP with App Password
 
 ```toml
 [accounts.gmail]
-email = "you@gmail.com"
-display-name = "Your Name"
+imap.server = "imaps://imap.gmail.com:993"
+imap.sasl.plain.username = "you@gmail.com"
+imap.sasl.plain.password.command = "pass show google/app-password"
 
-backend.type = "imap"
-backend.host = "imap.gmail.com"
-backend.port = 993
-backend.encryption.type = "tls"
-backend.login = "you@gmail.com"
-backend.auth.type = "password"
-backend.auth.cmd = "pass show google/app-password"
+smtp.server = "smtps://smtp.gmail.com:465"
+smtp.sasl.plain.username = "you@gmail.com"
+smtp.sasl.plain.password.command = "pass show google/app-password"
 
-message.send.backend.type = "smtp"
-message.send.backend.host = "smtp.gmail.com"
-message.send.backend.port = 587
-message.send.backend.encryption.type = "start-tls"
-message.send.backend.login = "you@gmail.com"
-message.send.backend.auth.type = "password"
-message.send.backend.auth.cmd = "pass show google/app-password"
+mailbox.alias.inbox = "INBOX"
+mailbox.alias.sent = "[Gmail]/Sent Mail"
+mailbox.alias.drafts = "[Gmail]/Drafts"
+mailbox.alias.trash = "[Gmail]/Trash"
 ```
 
-### iCloud (with App-Specific Password)
+App Password: Account → Security → 2-Step Verification → App Passwords.
 
-Generate the password at https://appleid.apple.com → Sign-In and Security → App-Specific Passwords.
+**v2 alternative:** the `gmail` REST backend (`--backend gmail`) avoids IMAP throttling entirely, but requires an OAuth 2.0 bearer token — `gmail.auth.token.raw` / `.command` — which is the only authorization Gmail's REST API accepts.
+
+### iCloud — App-Specific Password
 
 ```toml
 [accounts.icloud]
-email = "you@icloud.com"
-display-name = "Your Name"
+imap.server = "imaps://imap.mail.me.com:993"
+imap.sasl.plain.username = "you@icloud.com"
+imap.sasl.plain.password.command = "pass show icloud/app-password"
 
-backend.type = "imap"
-backend.host = "imap.mail.me.com"
-backend.port = 993
-backend.encryption.type = "tls"
-backend.login = "you@icloud.com"
-backend.auth.type = "password"
-backend.auth.cmd = "pass show icloud/app-password"
-
-message.send.backend.type = "smtp"
-message.send.backend.host = "smtp.mail.me.com"
-message.send.backend.port = 587
-message.send.backend.encryption.type = "start-tls"
-message.send.backend.login = "you@icloud.com"
-message.send.backend.auth.type = "password"
-message.send.backend.auth.cmd = "pass show icloud/app-password"
+smtp.server = "smtp://smtp.mail.me.com:587"
+smtp.starttls = true
+smtp.sasl.plain.username = "you@icloud.com"
+smtp.sasl.plain.password.command = "pass show icloud/app-password"
 ```
 
-### Outlook / Hotmail (Microsoft personal)
+Generate at https://appleid.apple.com → Sign-In and Security → App-Specific Passwords.
+
+### Outlook / Hotmail
 
 ```toml
 [accounts.outlook]
-email = "you@outlook.com"
-display-name = "Your Name"
+imap.server = "imaps://outlook.office365.com:993"
+imap.sasl.plain.username = "you@outlook.com"
+imap.sasl.plain.password.command = "pass show microsoft/app-password"
 
-backend.type = "imap"
-backend.host = "outlook.office365.com"
-backend.port = 993
-backend.encryption.type = "tls"
-backend.login = "you@outlook.com"
-backend.auth.type = "password"
-backend.auth.cmd = "pass show microsoft/app-password"
-
-message.send.backend.type = "smtp"
-message.send.backend.host = "smtp.office365.com"
-message.send.backend.port = 587
-message.send.backend.encryption.type = "start-tls"
-message.send.backend.login = "you@outlook.com"
-message.send.backend.auth.type = "password"
-message.send.backend.auth.cmd = "pass show microsoft/app-password"
+smtp.server = "smtp://smtp.office365.com:587"
+smtp.starttls = true
+smtp.sasl.plain.username = "you@outlook.com"
+smtp.sasl.plain.password.command = "pass show microsoft/app-password"
 ```
 
-**Note:** Microsoft is phasing out basic auth for some Outlook tenants. If basic auth fails, use OAuth2 (see below) or `microsoft-membrane-skills` for a different angle.
+Microsoft is retiring basic auth on many tenants. If it fails, use the **`msgraph` REST backend** added in v2 (`--backend msgraph`) with an OAuth 2.0 bearer token, or `oauthbearer` over IMAP.
 
-### Yahoo (with App Password) — see also the throttling warning in SKILL.md
-
-Yahoo requires an **App Password** (Account Security → Generate app password). Yahoo IMAP is also stricter than most — read the throttling warning at the top of `SKILL.md` before scripting against it.
+### Yahoo — App Password (read the throttling warning first)
 
 ```toml
 [accounts.yahoo]
-email = "you@yahoo.com"
-display-name = "Your Name"
+imap.server = "imaps://imap.mail.yahoo.com:993"
+imap.sasl.plain.username = "you@yahoo.com"
+imap.sasl.plain.password.command = "pass show yahoo/app-password"
 
-backend.type = "imap"
-backend.host = "imap.mail.yahoo.com"
-backend.port = 993
-backend.encryption.type = "tls"
-backend.login = "you@yahoo.com"
-backend.auth.type = "password"
-backend.auth.cmd = "pass show yahoo/app-password"
-
-message.send.backend.type = "smtp"
-message.send.backend.host = "smtp.mail.yahoo.com"
-message.send.backend.port = 587
-message.send.backend.encryption.type = "start-tls"
-message.send.backend.login = "you@yahoo.com"
-message.send.backend.auth.type = "password"
-message.send.backend.auth.cmd = "pass show yahoo/app-password"
+smtp.server = "smtp://smtp.mail.yahoo.com:587"
+smtp.starttls = true
+smtp.sasl.plain.username = "you@yahoo.com"
+smtp.sasl.plain.password.command = "pass show yahoo/app-password"
 ```
 
-### Self-hosted / generic IMAP server
+Yahoo IMAP is far stricter than the rest — read the throttling warning in `SKILL.md` and `reference/provider-quirks.md` before scripting anything against it.
+
+### Self-hosted / generic IMAP
 
 ```toml
 [accounts.self_hosted]
-email = "you@your-domain.example"
-display-name = "Your Name"
+imap.server = "imaps://mail.your-domain.example:993"
+imap.sasl.plain.username = "you@your-domain.example"
+imap.sasl.plain.password.command = "pass show self-hosted/imap"
 
-backend.type = "imap"
-backend.host = "mail.your-domain.example"
-backend.port = 993
-backend.encryption.type = "tls"
-backend.login = "you@your-domain.example"
-backend.auth.type = "password"
-backend.auth.cmd = "pass show self-hosted/imap"
-
-message.send.backend.type = "smtp"
-message.send.backend.host = "mail.your-domain.example"
-message.send.backend.port = 587
-message.send.backend.encryption.type = "start-tls"
-message.send.backend.login = "you@your-domain.example"
-message.send.backend.auth.type = "password"
-message.send.backend.auth.cmd = "pass show self-hosted/smtp"
+smtp.server = "smtps://mail.your-domain.example:465"
+smtp.sasl.plain.username = "you@your-domain.example"
+smtp.sasl.plain.password.command = "pass show self-hosted/smtp"
 ```
 
-### OAuth2 (for providers that support it)
-
-```toml
-[accounts.oauth_example]
-email = "you@example.com"
-
-backend.type = "imap"
-backend.host = "imap.example.com"
-backend.port = 993
-backend.encryption.type = "tls"
-backend.login = "you@example.com"
-backend.auth.type = "oauth2"
-backend.auth.client-id = "<your-client-id>"
-backend.auth.client-secret.cmd = "pass show oauth/client-secret"
-backend.auth.access-token.cmd = "pass show oauth/access-token"
-backend.auth.refresh-token.cmd = "pass show oauth/refresh-token"
-backend.auth.auth-url = "https://provider.example/oauth/authorize"
-backend.auth.token-url = "https://provider.example/oauth/token"
-```
-
-### Local mail via Notmuch
+### Local mail — Maildir / M2dir
 
 ```toml
 [accounts.local]
-email = "you@localhost"
-
-backend.type = "notmuch"
-backend.db-path = "~/.mail/.notmuch"
+maildir.root = "~/Mail/local"
 ```
+
+Notmuch and Sendmail backends were **removed in v2**. `m2dir` is the newer layout and now has CLI parity with `maildir` for messages, flags and envelopes (mailbox `rename` and message `copy`/`move` still pending upstream).
 
 ## Multiple accounts
 
-Just stack `[accounts.<name>]` blocks. Mark **one** as `default = true`.
+Stack `[accounts.<name>]` blocks. Mark **one** `default = true`.
 
 ```toml
 [accounts.personal]
-email = "you@example.com"
 default = true
-# … backend config …
+# … imap/smtp config …
 
 [accounts.work]
-email = "you@company.example"
-# … backend config …
+# … imap/smtp config …
 ```
 
-Use them with `-a <name>` (note: AFTER the subcommand):
+`-a/--account` is a **global** option in v2 — it works before or after the subcommand:
 
 ```bash
 himalaya envelope list -a work
-himalaya message read -a work 42
-```
-
-List configured accounts:
-
-```bash
+himalaya -a work envelope list
 himalaya account list
+himalaya account check -a work     # validate config + connectivity
 ```
 
-## Folder aliases
+## Mailbox aliases
 
-If your server uses non-standard folder names, map them:
+The v1 `[folder.alias]` block is now `[mailbox.alias]`:
 
 ```toml
-[accounts.personal.folder.alias]
+[mailbox.alias]
 inbox = "INBOX"
 sent = "Sent"
 drafts = "Drafts"
 trash = "Trash"
 ```
 
-## Signature
+Two behaviours worth knowing:
+
+- **Alias names are case-insensitive** on both lookup and storage — `INBOX`, `Inbox` and `inbox` are the same entry.
+- **The `inbox` alias is the implicit default mailbox.** Shared commands fall back to it when `-m/--mailbox` is omitted. There is no separate `default-mailbox` key.
+
+Account-level `[accounts.<name>.mailbox.alias]` entries override same-named global `[mailbox.alias]` entries. The wizard pre-fills these from the server where the protocol exposes them (JMAP reads RFC 8621 roles; Gmail and MS Graph map their fixed system labels; IMAP pins only the reserved `INBOX`, pending `LIST RETURN (SPECIAL-USE)` support upstream).
+
+## Listing and table rendering
 
 ```toml
-[accounts.personal]
-signature = "Best regards,\nYour Name"
-signature-delim = "-- \n"
+# Global or per-account
+downloads-dir = "~/downloads/himalaya"     # attachment download default; falls back to $TMPDIR
+envelope.list.page-size = 50               # -s/--page-size still wins; hard fallback 25
+envelope.list.datetime-fmt = "%F %R%:z"
+envelope.list.datetime-local-tz = false    # true converts to system tz
+table.preset = "││──╞═╪╡┆    ┬┴┌┐└┘"
+table.arrangement = "dynamic"              # or dynamic-full-width, disabled
 ```
 
-## Downloads directory
+Per-column colors live under `envelope.list.table.*-color` (e.g. `id-color`, `flags-color`, `from-color`). Note `sender-color` was renamed `from-color` in v2, and the per-type `folder.list.table.*` keys collapsed into a single global/per-account `table.*` plus `mailbox.list.table.*`.
 
-```toml
-[accounts.personal]
-downloads-dir = "~/Downloads/himalaya"
-```
+## Removed in v2 — don't carry these over
 
-…controls where `himalaya attachment download` writes files when `--dir` isn't passed.
+| Key | Status |
+|---|---|
+| `email`, `display-name` | Removed. Pass `--from` at compose time. |
+| `signature`, `signature-delim` | Removed. Use `compose --signature` / `--signature-file`. |
+| `[message.*]`, `[template.*]`, `[pgp.*]` | Removed. Composition lives in [`mml`](https://github.com/pimalaya/mml). |
+| `backend.*`, `message.send.backend.*` | Replaced by `imap.*` / `smtp.*`. |
+| `[folder.alias]` | Renamed `[mailbox.alias]`. |
+| `auth.keyring` | Removed. Use `password.command` with a password-manager CLI. |
+| `auth.type`, `backend.type` | Gone — the protocol table you populate selects the backend. |
+| `HIMALAYA_CONFIG` env var | Removed. Use `-c`. |
+| Notmuch, Sendmail backends | Removed. |
 
 ## Editor
 
-The interactive compose / reply / forward flow uses `$EDITOR`. Set it in your shell init:
+v2 needs no `$EDITOR` — `compose`, `reply` and `forward` are flag-driven and non-interactive. For an editor-based flow, write a draft yourself and pipe it in:
 
 ```bash
-export EDITOR="vim"   # or nvim, nano, "code -w", etc.
+$EDITOR /tmp/draft.eml && himalaya message send /tmp/draft.eml
 ```
