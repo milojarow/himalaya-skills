@@ -4,12 +4,13 @@
   "query": "I have two accounts configured: 'personal' (default) and 'work'. List my work inbox and then download attachments from work message 5 to ~/Downloads.",
   "expected_behavior": [
     "activate the himalaya skill",
-    "use `himalaya envelope list -a work` — note `-a` goes AFTER the subcommand",
+    "use `himalaya envelope list -a work`",
     "then `himalaya attachment download -a work 5 --dir ~/Downloads`",
-    "optionally mention `himalaya account list` to confirm account names",
+    "treat `-a` as a global option — do NOT assert it must come after the subcommand (that was a v1 constraint)",
+    "optionally mention `himalaya account list` to confirm account names, or `himalaya account check -a work` to validate connectivity",
     "do NOT switch the `default` account or modify config to make this work"
   ],
   "expected_content": ["envelope list -a work", "attachment download", "--dir", "account list"],
   "priority": "medium",
-  "notes": "Guards the `-a` flag ordering AND the multi-account pattern (without unnecessarily editing the default account). The skill must NOT propose editing `config.toml` for a one-off use of the non-default account."
+  "notes": "Guards the multi-account pattern without unnecessarily editing the default account. The skill must NOT propose editing `config.toml` for a one-off use of the non-default account, and must not resurrect the v1 `-a`-after-subcommand rule."
 }

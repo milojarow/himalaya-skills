@@ -9,8 +9,8 @@
     {
       "name": "himalaya-skills",
       "source": "./",
-      "description": "Drive himalaya (CLI email client over IMAP/SMTP): list/search/read/move/flag, attachments, compose with MML (HTML, inline images, attachments). Includes account setup for Gmail, iCloud, Outlook, Yahoo and OAuth2 — with a Yahoo throttling warning.",
-      "version": "0.1.4",
+      "description": "Drive himalaya v2 (CLI email client over IMAP/SMTP/JMAP/Gmail REST/MS Graph): list/search/read/move/flag, attachments, flag composer, MML via the standalone mml tool, raw IMAP/SMTP passthrough. Includes account setup for Gmail, iCloud, Outlook, Yahoo and OAuth2, a v1→v2 migration table — and a Yahoo throttling warning.",
+      "version": "0.2.0",
       "author": {
         "name": "milojarow",
         "url": "https://github.com/milojarow"
