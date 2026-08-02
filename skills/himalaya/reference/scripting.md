@@ -87,6 +87,10 @@ the CLI changes, it fails silently.
 - Log stderr (truncated) so the *why* survives, but never rely on the log as the
   alerting mechanism.
 - Pin/verify the CLI version the wrapper was written against — a major upgrade
-  changes flags, subcommands and JSON shape.
+  changes flags, subcommands and JSON shape (see
+  [v2-migration.md](v2-migration.md)).
+- Treat an **empty result as suspect, not as truth**: a mailbox name that does
+  not exist returns zero envelopes with exit 0. Validate mailbox ids against
+  `himalaya mailbox list` at startup.
 - Exercise the wrapper's failure path in tests: bad id, bad mailbox name, bad
   account.

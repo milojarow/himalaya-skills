@@ -31,11 +31,25 @@ Drive the [himalaya](https://github.com/pimalaya/himalaya) CLI to read, search, 
 
 If himalaya isn't installed, see [reference/installation.md](reference/installation.md) for one-liners per OS.
 
+## ⚠️ Check the major version before assuming any syntax
+
+**`himalaya --version` first — 2.x and 1.x are effectively different tools.**
+2.0.0 broke the config schema (transport is a URL whose scheme carries TLS, auth
+under `sasl.plain`), renamed flags (`--folder` → `--mailbox`, `--output json` →
+`--json`), dropped subcommands (`template`, `message export`, `--preview`), and
+changed the JSON output shape (envelopes now nest under an `envelopes` key, `id`
+is a string). An upgrade gives no warning: the binary starts fine and only fails
+when a command touches an account, with
+`No backend matching 'auto' is configured for this account`. Full v1 → v2 map and
+migration path: [reference/v2-migration.md](reference/v2-migration.md).
+
+The commands below use **2.x** syntax.
+
 ## ⚠️ Yahoo IMAP throttling — read this first
 
 **Chained IMAP commands against Yahoo trigger a silent, IP-level block** that lasts 25+ minutes and starts rejecting even `LOGIN` (`IMAP4rev1 Server logging out`) despite correct credentials. The fastest trigger is **chained `SEARCH`/fetch across non-INBOX folders** (`Archive`, `Sent`, `Junk`, `Bulk`). Aggressive retries reset/extend the block.
 
-**Minimum rules for Yahoo:** one command at a time (no loops/parallel), `sleep 30`+ between commands, avoid chained searches on non-INBOX folders, and if blocked **stop and wait out the full window** — don't retry. For bulk work, snapshot once (`himalaya envelope list --output json --page-size 50`) and operate on the cached output.
+**Minimum rules for Yahoo:** one command at a time (no loops/parallel), `sleep 30`+ between commands, avoid chained searches on non-INBOX folders, and if blocked **stop and wait out the full window** — don't retry. For bulk work, snapshot once (`himalaya envelope list --json --page-size 50`) and operate on the cached output.
 
 This severity is Yahoo-specific; Gmail, iCloud, Outlook and own-domain IMAP apply softer limits — keep them civilized but reserve the heavy pacing for Yahoo. Full detail and per-provider notes: [reference/provider-quirks.md](reference/provider-quirks.md).
 
@@ -47,13 +61,13 @@ The `-a <account>` / `--account <account>` flag goes **AFTER** the subcommand (`
 
 | Want to… | Command |
 |---|---|
-| List INBOX (default account) | `himalaya envelope list` |
-| List a specific folder | `himalaya envelope list --folder "Sent"` |
+| List inbox (default account) | `himalaya envelope list` (needs `mailbox.alias.inbox` on 2.x) |
+| List a specific mailbox | `himalaya envelope list -m "Sent"` |
 | Paginate | `himalaya envelope list --page 1 --page-size 20` |
 | Search | `himalaya envelope list from someone@example.com subject meeting` |
 | Read by ID | `himalaya message read 42` |
-| Raw MIME export | `himalaya message export 42 --full` |
-| List folders | `himalaya folder list` |
+| Raw MIME | `himalaya message read 42 --raw` |
+| List mailboxes | `himalaya mailbox list` |
 | Move | `himalaya message move 42 "Archive"` |
 | Copy | `himalaya message copy 42 "Important"` |
 | Delete | `himalaya message delete 42` |
@@ -61,10 +75,15 @@ The `-a <account>` / `--account <account>` flag goes **AFTER** the subcommand (`
 | Remove flag | `himalaya flag remove 42 --flag seen` |
 | Download attachments | `himalaya attachment download 42 [--dir ~/Downloads]` |
 | List accounts | `himalaya account list` |
-| JSON output | append `--output json` |
+| Check an account | `himalaya account check -a <account>` |
+| JSON output | append `--json` |
 | Debug | `RUST_LOG=debug himalaya <cmd>` |
 
-**Message IDs are scoped to the current folder.** Re-list after moving between folders or the IDs you remember may now point to different mail.
+On 1.x these differ: `-f`/`--folder` for `-m`, `--output json` for `--json`, `folder list` for `mailbox list`, `message export 42 --full` for `message read 42 --raw`.
+
+**Message IDs are scoped to the current mailbox.** Re-list after moving between mailboxes or the IDs you remember may now point to different mail.
+
+**A mailbox name that doesn't exist returns an EMPTY LIST, not an error** (exit 0, zero envelopes) — indistinguishable from a genuinely empty mailbox. Confirm ids with `himalaya mailbox list` before concluding there's no mail.
 
 For compose / reply / forward / MML: see [reference/composing-messages.md](reference/composing-messages.md).
 
@@ -86,14 +105,17 @@ The config lives at `~/.config/himalaya/config.toml`. The shortest path to a wor
 himalaya account configure
 ```
 
-…which runs the interactive wizard. For hand-rolled `config.toml` examples per provider (Gmail, iCloud, Outlook, Yahoo, generic IMAP, OAuth2, Notmuch), folder aliases, password retrieval via `pass` / system keyring, and the multi-account pattern: see [reference/configuration.md](reference/configuration.md).
+…which runs the interactive wizard. For hand-rolled `config.toml` examples per provider (Gmail, iCloud, Outlook, Yahoo, generic IMAP, OAuth2, Notmuch), mailbox aliases, password retrieval via `pass` / system keyring, and the multi-account pattern: see [reference/configuration.md](reference/configuration.md). On 2.x every account also needs `mailbox.alias.inbox = "<id>"` — omitting it is a hard failure, not a fallback to INBOX.
 
 ## Common mistakes
 
 - **Putting `-a` before the subcommand.** It must come AFTER: `himalaya envelope list -a personal`.
-- **Acting on a stale message ID** after moving between folders. Re-list first. **Bulk-move loops bite hardest here:** after each `message move` the IDs of remaining mail in the source folder may shift. For scripted bulk moves, snapshot the list once (`envelope list --output json --page-size 100`) and reference messages by Message-ID or by a stable predicate, NOT by the relative integer ID — or `envelope list` again before each move (with the inter-call sleep on strict providers).
-- **Putting the password as `auth.raw` in the config.** Works for testing but means a plaintext password on disk. Use `auth.cmd = "pass show …"` or `auth.keyring = "…"` instead.
+- **Acting on a stale message ID** after moving between folders. Re-list first. **Bulk-move loops bite hardest here:** after each `message move` the IDs of remaining mail in the source folder may shift. For scripted bulk moves, snapshot the list once (`envelope list --json --page-size 100`) and reference messages by Message-ID or by a stable predicate, NOT by the relative integer ID — or `envelope list` again before each move (with the inter-call sleep on strict providers).
+- **Assuming 1.x syntax on a 2.x binary** (or the reverse). Check `himalaya --version` first — see [reference/v2-migration.md](reference/v2-migration.md).
+- **Storing the password in plaintext in the config.** Use a command that prints the secret (`…password.command = "pass show …"` on 2.x, `auth.cmd` on 1.x) or the system keyring instead.
 - **Hammering Yahoo with chained commands** (especially searches across non-INBOX folders) — see the Yahoo throttling section above.
 - **Forgetting `$EDITOR`** before `himalaya message write` — it fails or opens `vi` if you didn't intend that.
-- **Confusing `message read` with `message export`** — `read` is plain text rendering, `export --full` is raw MIME (useful for debugging signatures, headers, attachments).
+- **Confusing rendered text with raw MIME** — `message read` renders plain text; `message read --raw` (2.x) / `message export --full` (1.x) gives raw MIME, useful for debugging signatures, headers and attachments.
+- **Making an extra fetch just to get the Message-ID on 2.x** — it now ships inside the envelope JSON (`message-id`). Drop the second call; it's one IMAP round-trip per message you don't need.
+- **Parsing 2.x JSON as a bare array** — envelopes nest under `{"envelopes": [...]}`, and `id` is a string now.
 - **Trying to compose HTML inline** — use MML's `<#multipart type=alternative>` (see [reference/composing-messages.md](reference/composing-messages.md)).
