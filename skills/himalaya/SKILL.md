@@ -68,6 +68,16 @@ The `-a <account>` / `--account <account>` flag goes **AFTER** the subcommand (`
 
 For compose / reply / forward / MML: see [reference/composing-messages.md](reference/composing-messages.md).
 
+## Scripting himalaya
+
+**himalaya prints to stdout even when a command FAILS** (the `Usage:` /
+`Suggestions:` help block) — a wrapper that slices `stdout` without checking the
+exit code will forward the error text as if it were the message body. Always
+read `returncode` first. And a wrapper that catches errors, logs them and still
+exits 0 makes an outage invisible to systemd/cron monitoring: aggregate failures
+into a non-zero exit. Full rules and patterns:
+[reference/scripting.md](reference/scripting.md).
+
 ## Configuration (one-line)
 
 The config lives at `~/.config/himalaya/config.toml`. The shortest path to a working setup is:
