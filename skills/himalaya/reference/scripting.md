@@ -79,7 +79,48 @@ good; the *exit code* is what the monitor reads. Every `except` that does not
 end up influencing the exit status is a blind spot with an expiry date — the day
 the CLI changes, it fails silently.
 
-## 3. Checklist for any unattended himalaya wrapper
+## 3. Parsing traps introduced by 2.x
+
+### `message read --raw` returns the WHOLE RFC 5322 message
+
+1.x had `message read --header <H>`, which printed *only* that header — so
+"take the first line containing `@`" was a working way to grab a sender. 2.x
+dropped `--header`; the replacement is `--raw`, which hands back the complete
+message: envelope headers, `Received:` chain, body, MIME parts.
+
+Over the full message, **the first line containing `@` is a `Received:` header**,
+not the sender. The extraction still "works", it just returns a relay hostname.
+
+Parse properly: match the header **by name** at the start of a line, honour
+continuation lines (leading whitespace), and **stop at the first blank line** —
+everything after it is body, and a quoted email address in the body will
+otherwise be mistaken for a header value.
+
+### `message-id` is spelled differently in the two places you can get it
+
+- From `envelope list --json`: **bare**, no angle brackets — `abc@example.com`.
+- From the raw header (`message read --raw`): **with** them —
+  `<abc@example.com>`.
+
+Any code that cross-references the two must normalise (strip `<>` on both sides)
+before comparing, or every lookup misses.
+
+### A renamed positional flag fails *silently* inside `try/except`
+
+`flag add`, `message move` and `message copy` turned positional arguments into
+named ones on 2.x (see [v2-migration.md](v2-migration.md) §3). The v1 invocation
+now dies with:
+
+```
+error: the following required arguments were not provided
+```
+
+That is an ordinary non-zero exit — which a wrapper with a bare `except` around
+the call swallows completely. The mail is never moved, never flagged, and
+nothing anywhere says so. This is exactly the class of bug §1 and §2 exist to
+catch: check `returncode`, and let failures reach the exit status.
+
+## 4. Checklist for any unattended himalaya wrapper
 
 - Check `returncode` before parsing `stdout` on **every** invocation.
 - Return a sentinel (`None`) on failure instead of a best-effort string.

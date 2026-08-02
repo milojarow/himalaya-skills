@@ -84,6 +84,41 @@ Keys to the pattern:
 
 **Sign you're already blocked:** logins from that host start failing or hanging, while the same account connects fine from a different IP.
 
+## `imap expunge` is folder-wide — it takes other people's deletions with it
+
+On 2.x, deleting is two steps: `flag add --flag deleted <ids>` then
+`imap expunge <mailbox>`. The second step **permanently removes every message in
+that mailbox carrying `\Deleted`** — not only the ids you just flagged.
+
+himalaya does not expose `UID EXPUNGE` (RFC 4315), which is the command that
+would scope the purge to specific messages. So anything already flagged
+`\Deleted` by another client, an earlier aborted run, or the user's phone gets
+destroyed in the same call.
+
+Before expunging a shared or long-lived mailbox, **count what is already
+flagged** (`himalaya envelope list -m <mailbox> --json` and inspect `flags`) and
+decide whether collateral is acceptable. On a mailbox you don't exclusively own,
+prefer moving to an archive/trash mailbox over the delete+expunge pair.
+
+## Not every IMAP server supports MOVE
+
+`message move` sends `UID MOVE` (RFC 6851) unconditionally — himalaya does not
+check `CAPABILITY` first. Against a server that never announced `MOVE`, the
+result is:
+
+```
+BAD ... command not permitted with UID
+```
+
+The portable fallback is the three-step dance the server is guaranteed to
+support:
+
+```bash
+himalaya message copy --to "Archive" <id>
+himalaya flag add --flag deleted <id>
+himalaya imap expunge "INBOX"          # ⚠️ folder-wide, see above
+```
+
 ## Other providers
 
 - **Gmail / iCloud / Outlook** — permissive but still rate-limited. Don't

@@ -63,6 +63,25 @@ Scheme table — the port alone is not enough, STARTTLS needs its own flag:
 Account-level `email`, `display-name` and `default = true` are **still valid** —
 `himalaya account list` renders the DEFAULT column correctly. Don't strip them.
 
+### ⚠️ The config rewrite is the most dangerous part of the upgrade — it doesn't crash
+
+A CLI break at least produces an error. A **third-party reader of
+`config.toml`** — a watcher, a dispatcher, anything that enumerates accounts
+itself — hits the v2 shape, fails to recognise the accounts it doesn't
+understand, and **carries on with the ones it does**. No exception, no log line.
+
+In a mail watcher that means starting up `active`, printing
+`Starting mail watcher for: …` with a *shorter* list than yesterday, and going
+blind on the missing mailboxes without a single alarm.
+
+Rules for anything that parses the config itself:
+
+- **Accept both shapes** (`backend.*` for v1, `<backend>.server` for v2), or
+- **Alarm when the account count drops** below the previous run / a configured
+  expected count — and refuse to start rather than run degraded.
+- Never treat "account not recognised" as "account not present". Log it loudly
+  and make it affect the exit status ([scripting.md](scripting.md) §2).
+
 ## 2. ⚠️ v2 no longer assumes INBOX — declare the alias
 
 In v1, omitting the folder fell back to INBOX. In v2 the command **fails**:
@@ -94,6 +113,19 @@ failure in scripts — see [scripting.md](scripting.md).
 |---|---|
 | `-f` / `--folder` | `-m` / `--mailbox` |
 | `--output json` | `--json` |
+| `--page-size N` | `-s N` (short form) |
+
+**Flags that used to be positional now need their name.** This is the sneakiest
+class of break, because the command still *looks* right:
+
+| v1 | v2 |
+|---|---|
+| `flag add <id> <flag>` | `flag add --flag <flag> <id>` |
+| `message move <dst> <id>` | `message move --to <dst> <id>` (+ `-f`/`--from` for the source) |
+| `message copy <dst> <id>` | `message copy --to <dst> <id>` |
+
+The failure is `error: the following required arguments were not provided` — which
+inside a `try/except` is a **no-op**. See [scripting.md](scripting.md).
 
 ## 4. Subcommands that disappeared
 
@@ -102,9 +134,20 @@ failure in scripts — see [scripting.md](scripting.md).
 | `template send` (stdin) | `message send` (stdin) — the `template` group **no longer exists** |
 | `message export <id> --full` | `message read <id> --raw` |
 | `message read --preview <id>` | `message read <id>` — **`--preview` is gone**; no documented way to read without risking the Seen flag |
+| `message read --header <H>` | **gone** → `message read --raw` and parse the header yourself |
+| `folder list` | `mailbox list` (alias `mbox`) |
+| `folder expunge <F>` | `imap expunge <F>` — moved to the IMAP-specific API |
+| `message delete <id>` | **gone** → `flag add --flag deleted <ids>` then `imap expunge <F>` |
 
 To read without marking as seen under v2, drop to a raw IMAP session with
 `BODY.PEEK[...]` (pattern in [provider-quirks.md](provider-quirks.md)).
+
+### Per-backend API groups are new in v2
+
+Operations that aren't part of the shared API moved under a group named after the
+backend: `imap`, `jmap`, `gmail`, `msgraph`, `maildir`, `smtp`. If a v1 verb
+vanished from the top level, look for it there first — `expunge` is the common
+case. `himalaya imap --help` lists what a given backend exposes.
 
 ## 5. JSON shape changed — it breaks every parser
 
@@ -122,6 +165,18 @@ To read without marking as seen under v2, drop to a raw IMAP session with
     "size": 127182, "has-attachment": false
 } ] }
 ```
+
+**Every list command wraps now, each under its own key** — it is not just
+envelopes:
+
+```jsonc
+{ "envelopes":  [ {"id": "52", "message-id": "...", "flags": [], "subject": "..."} ] }
+{ "mailboxes":  [ {"id": "INBOX", "name": "INBOX", "total": null, "unread": null} ] }
+```
+
+A `json.loads(out)` that used to iterate the list directly now iterates the
+**keys of a dict** — which either raises on attribute access or silently yields
+one garbage item, depending on what the loop body does with it.
 
 Migration notes for parsers:
 

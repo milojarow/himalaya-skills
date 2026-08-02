@@ -67,19 +67,23 @@ The `-a <account>` / `--account <account>` flag goes **AFTER** the subcommand (`
 | Search | `himalaya envelope list from someone@example.com subject meeting` |
 | Read by ID | `himalaya message read 42` |
 | Raw MIME | `himalaya message read 42 --raw` |
-| List mailboxes | `himalaya mailbox list` |
-| Move | `himalaya message move 42 "Archive"` |
-| Copy | `himalaya message copy 42 "Important"` |
-| Delete | `himalaya message delete 42` |
-| Add flag | `himalaya flag add 42 --flag seen` |
-| Remove flag | `himalaya flag remove 42 --flag seen` |
+| List mailboxes | `himalaya mailbox list` (alias `mbox`) |
+| Move | `himalaya message move --to "Archive" 42` |
+| Copy | `himalaya message copy --to "Important" 42` |
+| Delete | `himalaya flag add --flag deleted 42` + `himalaya imap expunge "INBOX"` |
+| Add flag | `himalaya flag add --flag seen 42` |
+| Remove flag | `himalaya flag remove --flag seen 42` |
 | Download attachments | `himalaya attachment download 42 [--dir ~/Downloads]` |
 | List accounts | `himalaya account list` |
 | Check an account | `himalaya account check -a <account>` |
 | JSON output | append `--json` |
 | Debug | `RUST_LOG=debug himalaya <cmd>` |
 
-On 1.x these differ: `-f`/`--folder` for `-m`, `--output json` for `--json`, `folder list` for `mailbox list`, `message export 42 --full` for `message read 42 --raw`.
+On 1.x these differ: `-f`/`--folder` for `-m`, `--output json` for `--json`, `folder list` for `mailbox list`, `folder expunge` for `imap expunge`, `message export 42 --full` for `message read 42 --raw`, and `message delete 42` still exists. 1.x also took the flag/destination **positionally** (`flag add 42 seen`, `message move "Archive" 42`) — 2.x requires `--flag` / `--to`.
+
+**`message delete` was removed in 2.x.** Deleting is now flag-then-expunge, and `imap expunge` purges **every** `\Deleted` message in that mailbox, not just yours — see [reference/provider-quirks.md](reference/provider-quirks.md).
+
+Operations outside the shared API live under per-backend groups (`imap`, `jmap`, `gmail`, `msgraph`, `maildir`, `smtp`). If a 1.x verb disappeared, look there.
 
 **Message IDs are scoped to the current mailbox.** Re-list after moving between mailboxes or the IDs you remember may now point to different mail.
 
@@ -117,5 +121,8 @@ himalaya account configure
 - **Forgetting `$EDITOR`** before `himalaya message write` — it fails or opens `vi` if you didn't intend that.
 - **Confusing rendered text with raw MIME** — `message read` renders plain text; `message read --raw` (2.x) / `message export --full` (1.x) gives raw MIME, useful for debugging signatures, headers and attachments.
 - **Making an extra fetch just to get the Message-ID on 2.x** — it now ships inside the envelope JSON (`message-id`). Drop the second call; it's one IMAP round-trip per message you don't need.
-- **Parsing 2.x JSON as a bare array** — envelopes nest under `{"envelopes": [...]}`, and `id` is a string now.
+- **Parsing 2.x JSON as a bare array** — every list command wraps under its own key (`{"envelopes": [...]}`, `{"mailboxes": [...]}`), and `id` is a string now. Iterating the unwrapped result iterates the dict's *keys*.
+- **Passing a flag or destination positionally on 2.x** — `flag add 42 seen` and `message move "Archive" 42` are 1.x. 2.x needs `--flag` / `--to`, and fails with `error: the following required arguments were not provided` — a no-op inside a bare `try/except`.
+- **Grepping `message read --raw` for the first line with `@`** — `--raw` returns the full RFC 5322 message, so that line is a `Received:` header. Match the header by name and stop at the blank line. (`--header` existed on 1.x only.)
+- **Comparing Message-IDs across sources without normalising** — `envelope list` gives it *without* `<>`, the raw header *with*. Strip both sides.
 - **Trying to compose HTML inline** — use MML's `<#multipart type=alternative>` (see [reference/composing-messages.md](reference/composing-messages.md)).
